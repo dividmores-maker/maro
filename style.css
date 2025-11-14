@@ -1,0 +1,43 @@
+:root{
+  --bg1:#061021; --bg2:#0f2a5a; --accent:#ffb800; --cyan:#00e0ff; --card:#0f1730cc; --muted:#9aa4bf;
+  --success:#18d26e; --danger:#e74c3c; --radius:14px;
+}
+*{box-sizing:border-box}
+body{
+  margin:0; font-family:system-ui, Arial, sans-serif; color:#fff;
+  background:
+    radial-gradient(800px 400px at 10% 10%, #07173755, transparent 20%),
+    linear-gradient(135deg, var(--bg1), var(--bg2));
+  min-height:100vh;
+}
+.container{max-width:1100px;margin:20px auto;padding:18px}
+.card{background:var(--card);padding:16px;border-radius:var(--radius);box-shadow:0 10px 30px #00000055;border:1px solid #ffffff12}
+.header{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.row{display:flex;gap:10px;flex-wrap:wrap}
+button{background:var(--accent);color:#1b1300;border:none;padding:10px 14px;border-radius:10px;font-weight:700;cursor:pointer}
+button.ghost{background:transparent;border:1px dashed #ffffff33;color:#fff}
+button.secondary{background:#21345a;color:#fff}
+button.danger{background:var(--danger);color:#fff}
+input,select{padding:8px;border-radius:10px;border:1px solid #334278;background:#0b1632;color:#fff;min-width:120px}
+.table{overflow:auto;margin-top:12px}
+table{width:100%;border-collapse:collapse}
+th,td{padding:8px;text-align:center;border-bottom:1px solid #ffffff12}
+thead th{background:#0b1b3f;position:sticky;top:0}
+.pair{display:flex;gap:10px;align-items:center;flex-wrap:wrap;border-radius:10px;padding:8px;background:#081229;border:1px solid #ffffff10;margin:6px 0}
+.vs{font-weight:800}
+.bad{color:var(--danger)}
+.ok{color:var(--success)}
+.tag{padding:6px 10px;background:#ffffff10;border-radius:999px}
+.ball{width:56px;height:56px;position:fixed;right:12px;bottom:12px;background:url('https://upload.wikimedia.org/wikipedia/commons/d/d3/Soccerball.svg') center/contain no-repeat;animation:float 3s ease-in-out infinite}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-12px)}}
+.hidden{display:none}
+.muted{color:var(--muted);font-size:13px}
+.muted{
+  font-size: 35px;
+  text-align: center;
+  font-weight: bold;
+}
+.card h3{
+  text-align: center;
+  font-size: 30px;
+}
