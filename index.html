@@ -48,9 +48,21 @@ thead th{background:#0b1b3f;position:sticky;top:0}
   text-align: center;
   font-size: 30px;
 }
+.status{
+  position:fixed;
+  top:10px;
+  left:10px;
+  padding:8px 12px;
+  background:#18d26e;
+  color:#fff;
+  border-radius:8px;
+  font-size:12px;
+  font-weight:bold;
+}
 </style>
 </head>
 <body>
+<div class="status" id="firebase-status">🔄 جاري الاتصال...</div>
 <div class="ball" aria-hidden="true"></div>
 <div class="container" id="page-main">
   <div class="card header">
@@ -77,7 +89,7 @@ thead th{background:#0b1b3f;position:sticky;top:0}
       <button onclick="doLogin()">دخول</button>
       <button class="ghost" onclick="goHome()">رجوع</button>
     </div>
-    <div class="muted" style="width:100%;">الافتراضي: <b>admin</b> / <b>1234</b></div>
+    <div class="muted" style="width:100%;font-size:14px;">الافتراضي: <b>admin</b> / <b>1234</b></div>
   </div>
 </div>
 <!-- Audience -->
@@ -128,10 +140,10 @@ thead th{background:#0b1b3f;position:sticky;top:0}
 <!-- Firebase SDK -->
 <script type="module">
   // ============================================
-  // 🔥 ضع بيانات Firebase Configuration هنا
+  // 🔥 Firebase + Firestore Configuration
   // ============================================
   import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
-  import { getDatabase, ref, set, onValue, remove } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
+  import { getFirestore, doc, setDoc, onSnapshot, getDoc } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 
   const firebaseConfig = {
     apiKey: "AIzaSyCHpkIlf8A13cL6TLggr7-3u8FM-PxzfSY",
@@ -143,14 +155,18 @@ thead th{background:#0b1b3f;position:sticky;top:0}
   };
 
   const app = initializeApp(firebaseConfig);
-  const db = getDatabase(app);
-  window.firebaseDB = db;
-  window.firebaseRef = ref;
-  window.firebaseSet = set;
-  window.firebaseOnValue = onValue;
-  window.firebaseRemove = remove;
+  const db = getFirestore(app);
+  
+  // Make Firestore available globally
+  window.firestoreDB = db;
+  window.firestoreDoc = doc;
+  window.firestoreSetDoc = setDoc;
+  window.firestoreOnSnapshot = onSnapshot;
+  window.firestoreGetDoc = getDoc;
 
-  console.log('✅ Firebase متصل بنجاح!');
+  console.log('✅ Firestore متصل بنجاح!');
+  document.getElementById('firebase-status').textContent = '✅ متصل';
+  document.getElementById('firebase-status').style.background = '#18d26e';
 </script>
 
 <script>
@@ -165,29 +181,40 @@ const state = {
 };
 
 // ============================================
-// 🔥 Firebase Functions (بدل localStorage)
+// 🔥 Firestore Functions
 // ============================================
 function saveAll(){
-  const dbRef = window.firebaseRef(window.firebaseDB, 'leagueData');
-  window.firebaseSet(dbRef, {
+  const docRef = window.firestoreDoc(window.firestoreDB, 'tournaments', 'leagueData');
+  window.firestoreSetDoc(docRef, {
     teams: state.teams,
     groups: state.groups,
     standings: state.standings,
     matches: state.matches,
-    knockout: state.knockout
-  }).catch(err => console.error('خطأ في حفظ البيانات:', err));
+    knockout: state.knockout,
+    lastUpdate: new Date().toISOString()
+  }).then(() => {
+    console.log('✅ تم حفظ البيانات بنجاح');
+  }).catch(err => {
+    console.error('❌ خطأ في حفظ البيانات:', err);
+    alert('خطأ في حفظ البيانات: ' + err.message);
+  });
 }
 
 function loadAll(){
-  const dbRef = window.firebaseRef(window.firebaseDB, 'leagueData');
-  window.firebaseOnValue(dbRef, (snapshot) => {
+  const docRef = window.firestoreDoc(window.firestoreDB, 'tournaments', 'leagueData');
+  
+  // استخدام onSnapshot للحصول على التحديثات الفورية
+  window.firestoreOnSnapshot(docRef, (snapshot) => {
     if(snapshot.exists()){
-      const data = snapshot.val();
+      const data = snapshot.data();
       state.teams = data.teams || [];
       state.groups = data.groups || [];
       state.standings = data.standings || [];
       state.matches = data.matches || [];
       state.knockout = data.knockout || {};
+      
+      console.log('✅ تم تحميل البيانات من Firestore');
+      console.log('البيانات:', data);
       
       // تحديث الواجهة حسب الصفحة الحالية
       const currentPage = document.querySelector('.container:not(.hidden)');
@@ -196,7 +223,13 @@ function loadAll(){
         if(currentPage.id === 'page-audience') renderAudience();
       }
       renderTeamsList();
+    } else {
+      console.log('⚠️ لا توجد بيانات محفوظة بعد في Firestore');
     }
+  }, (error) => {
+    console.error('❌ خطأ في تحميل البيانات:', error);
+    document.getElementById('firebase-status').textContent = '❌ خطأ في الاتصال';
+    document.getElementById('firebase-status').style.background = '#e74c3c';
   });
 }
 
@@ -230,7 +263,7 @@ function renderTeamsList(){
   wrap.innerHTML='';
   state.teams.forEach((t,i)=>{
     const el = document.createElement('div'); el.className='tag'; el.style.display='inline-flex'; el.style.gap='8px';
-    el.innerHTML = `<span>⚽ ${t}</span> <button class="ghost" onclick="removeTeam(${i})">حذف</button>`;
+    el.innerHTML = `<span>⚽ ${t}</span> <button class="ghost" style="padding:4px 8px;font-size:12px" onclick="removeTeam(${i})">حذف</button>`;
     wrap.appendChild(el);
   });
 }
@@ -298,12 +331,150 @@ function renderGroupsOrg(){
   const host = document.getElementById('org-groups'); 
   if(!host) return;
   host.innerHTML='';
-  if(!state.groups.length){ host.innerHTML='<div class="muted">لا توجد مجموعات بعد — قم بالقرعة</div>'; return; }
+  if(!state.groups.length){ host.innerHTML='<div class="muted" style="font-size:14px">لا توجد مجموعات بعد — قم بالقرعة</div>'; return; }
   state.groups.forEach((g, gi)=>{
     const c = document.createElement('div'); c.className='card';
     const sorted = sortGroup(state.standings[gi] || []);
     let html = `<h3>المجموعة ${gi+1}</h3>
       <div class="table"><table><thead><tr>
+      <th>الفريق</th><th>لعب</th><th>فوز</th><th>تعادل</th><th>خسارة</th>
+      <th>له</th><th>عليه</th><th>فرق</th><th>نقاط</th><th>إنذار</th><th>طرد</th>
+      </tr></thead><tbody>`;
+    sorted.forEach(t=>{
+      html += `<tr><td>${t.name}</td><td>${t.played}</td><td>${t.win}</td><td>${t.draw}</td><td>${t.lose}</td>
+        <td>${t.gf}</td><td>${t.ga}</td><td>${t.gf - t.ga}</td><td><b>${t.pts}</b></td><td>${t.yellow}</td><td>${t.red}</td></tr>`;
+    });
+    html += `</tbody></table></div>`;
+    html += `<div style="margin-top:10px"><h4>جدول المباريات (Schedule)</h4>`;
+    const matches = state.matches[gi] || [];
+    if(!matches.length) html += `<div class="muted" style="font-size:14px">لا توجد مباريات</div>`;
+    matches.forEach((m, mi)=>{
+      html += `<div class="pair" id="m-${gi}-${mi}">
+        <span>${m.a}</span>
+        <span class="vs">—</span>
+        <span>${m.b}</span>
+        <input type="number" id="m-${gi}-${mi}-a" placeholder="أهداف ${m.a}" style="width:90px" value="${m.sA===null?'':m.sA}" />
+        <input type="number" id="m-${gi}-${mi}-b" placeholder="أهداف ${m.b}" style="width:90px" value="${m.sB===null?'':m.sB}" />
+        <input type="number" id="m-${gi}-${mi}-yA" placeholder="إنذارات ${m.a}" style="width:120px" value="${m.yA||0}" />
+        <input type="number" id="m-${gi}-${mi}-yB" placeholder="إنذارات ${m.b}" style="width:120px" value="${m.yB||0}" />
+        <input type="number" id="m-${gi}-${mi}-rA" placeholder="طرد ${m.a}" style="width:100px" value="${m.rA||0}" />
+        <input type="number" id="m-${gi}-${mi}-rB" placeholder="طرد ${m.b}" style="width:100px" value="${m.rB||0}" />
+        <button onclick="saveMatchResult(${gi},${mi})">${m.played? 'تحديث' : 'حفظ'}</button>
+        <button class="ghost" onclick="clearMatchResult(${gi},${mi})">مسح نتيجة</button>
+      </div>`;
+    });
+    html += `</div>`;
+    c.innerHTML = html;
+    host.appendChild(c);
+  });
+}
+
+/* Save match result, then rebuild standings from all matches */
+function saveMatchResult(gi, mi){
+  const m = state.matches[gi][mi];
+  const sA = document.getElementById(`m-${gi}-${mi}-a`).value;
+  const sB = document.getElementById(`m-${gi}-${mi}-b`).value;
+  if(sA === '' || sB === '') { if(!confirm('سجل الأهداف كـ0 إذا تريد ذلك؟')) return; }
+  const a = parseInt(sA||'0',10), b = parseInt(sB||'0',10);
+  const yA = parseInt(document.getElementById(`m-${gi}-${mi}-yA`).value||'0',10);
+  const yB = parseInt(document.getElementById(`m-${gi}-${mi}-yB`).value||'0',10);
+  const rA = parseInt(document.getElementById(`m-${gi}-${mi}-rA`).value||'0',10);
+  const rB = parseInt(document.getElementById(`m-${gi}-${mi}-rB`).value||'0',10);
+  m.sA = a; m.sB = b; m.yA = yA; m.yB = yB; m.rA = rA; m.rB = rB; m.played = true;
+  rebuildStandings();
+  renderGroupsOrg(); renderAudience(); saveAll();
+}
+
+/* Clear a match (make it unplayed) and rebuild standings */
+function clearMatchResult(gi, mi){
+  if(!confirm('هل أنت متأكد من مسح نتيجة هذه المباراة؟')) return;
+  const m = state.matches[gi][mi];
+  m.sA = null; m.sB = null; m.yA=0; m.yB=0; m.rA=0; m.rB=0; m.played=false;
+  rebuildStandings(); renderGroupsOrg(); renderAudience(); saveAll();
+}
+
+/* Knockout functions */
+function topTwoFromGroupIndex(gi){ return sortGroup(state.standings[gi]||[]).slice(0,2).map(x=>x.name) }
+
+function createKnockoutFromGroups(){
+  if(!state.groups.length) { alert('لا توجد مجموعات'); return; }
+  const qualified = []; for(let i=0;i<state.groups.length;i++) qualified.push(...topTwoFromGroupIndex(i));
+  if(qualified.length < 2) { alert('المتأهلون أقل من اللازم'); return; }
+  const shuffled = qualified.sort(()=>Math.random()-0.5);
+  const pairs = []; for(let i=0;i<shuffled.length;i+=2) if(shuffled[i+1]) pairs.push({a:shuffled[i], b:shuffled[i+1], sA:null,sB:null, winner:null, loser:null});
+  state.knockout.R2 = pairs; saveAll(); renderBracketsOrg(); renderAudience(); alert('تم إنشاء الدور الثاني من المتأهلين');
+}
+
+function advanceKnockout(fromKey,toKey){
+  const from = state.knockout[fromKey];
+  if(!from || !from.length){ alert('لا توجد مباريات في هذا الدور'); return; }
+  const winners = from.filter(p=>p.winner).map(p=>p.winner);
+  if(winners.length !== from.length){ alert('سجّل نتائج كل مباريات هذا الدور أولا'); return; }
+  const shuffled = winners.sort(()=>Math.random()-0.5);
+  const next = []; for(let i=0;i<shuffled.length;i+=2) if(shuffled[i+1]) next.push({a:shuffled[i], b:shuffled[i+1], sA:null,sB:null, winner:null, loser:null});
+  state.knockout[toKey] = next; saveAll(); renderBracketsOrg(); renderAudience(); alert('تم إنشاء الدور التالي');
+}
+
+function advanceFinals(){
+  const sf = state.knockout.SF; if(!sf || !sf.length){ alert('لا يوجد نصف نهائي'); return; }
+  if(sf.some(p=>!p.winner)){ alert('سجل نتائج نصف النهائي أولاً'); return; }
+  const winners = sf.map(p=>p.winner), losers = sf.map(p=>p.loser);
+  state.knockout.F = [{a:winners[0], b:winners[1], sA:null,sB:null, winner:null, loser:null}];
+  state.knockout.P3 = [{a:losers[0], b:losers[1], sA:null,sB:null, winner:null, loser:null}];
+  saveAll(); renderBracketsOrg(); renderAudience(); alert('تم إنشاء النهائي ومباراة المركز الثالث');
+}
+
+function renderBracketsOrg(){
+  const host = document.getElementById('org-brackets'); 
+  if(!host) return;
+  host.innerHTML='';
+  const order = [['R2','الدور الثاني'],['R3','الدور الثالث'],['SF','نصف النهائي'],['F','النهائي'],['P3','مركز ثالث']];
+  order.forEach(([k,label])=>{
+    const list = state.knockout[k] || [];
+    const card = document.createElement('div'); card.className='card';
+    let html = `<h4>${label}</h4>`;
+    if(!list.length) html += `<div class="muted" style="font-size:14px">لا يوجد</div>`;
+    list.forEach((p, idx)=>{
+      html += `<div class="pair">
+        <span>${p.a}</span><input type="number" id="${k}-a-${idx}" placeholder="أهداف ${p.a}" style="width:80px" value="${p.sA===null?'':p.sA}" />
+        <span class="vs">:</span>
+        <input type="number" id="${k}-b-${idx}" placeholder="أهداف ${p.b}" style="width:80px" value="${p.sB===null?'':p.sB}" /><span>${p.b}</span>
+        <button onclick="saveBracketResult('${k}',${idx})">حفظ</button>
+        ${p.winner? `<span class="ok">الفائز: ${p.winner}</span>` : ''}
+        ${p.loser? `<span class="bad">الخاسر: ${p.loser}</span>` : ''}
+      </div>`;
+    });
+    card.innerHTML = html; host.appendChild(card);
+  });
+}
+
+function saveBracketResult(stage, idx){
+  const list = state.knockout[stage]; if(!list) return;
+  const p = list[idx];
+  const sA = parseInt(document.getElementById(`${stage}-a-${idx}`).value||'0',10);
+  const sB = parseInt(document.getElementById(`${stage}-b-${idx}`).value||'0',10);
+  if(isNaN(sA) || isNaN(sB)){ alert('أدخل أرقام صحيحة'); return; }
+  p.sA = sA; p.sB = sB;
+  if(sA===sB){ alert('الأدوار الإقصائية تحتاج فائز (سجّل نتيجة مختلفة أو ضع نتيجة بعد ضربات الترجيح)'); return; }
+  p.winner = sA>sB? p.a : p.b; p.loser = sA>sB? p.b : p.a;
+  saveAll(); renderBracketsOrg(); renderAudience();
+}
+
+/* Audience render */
+function renderAudience(){
+  const gHost = document.getElementById('audience-groups'); 
+  if(!gHost) return;
+  gHost.innerHTML='';
+  
+  if(!state.groups.length){
+    gHost.innerHTML='<div class="card"><div class="muted" style="font-size:14px">لا توجد مجموعات بعد</div></div>';
+    return;
+  }
+  
+  state.groups.forEach((g, gi)=>{
+    const sorted = sortGroup(state.standings[gi] || []);
+    const card = document.createElement('div'); card.className='card';
+    let html = `<h3>المجموعة ${gi+1}</h3><div class="table"><table><thead><tr>
       <th>الفريق</th><th>لعب</th><th>فوز</th><th>تعادل</th><th>خسارة</th>
       <th>له</th><th>عليه</th><th>فرق</th><th>نقاط</th><th>إنذار</th><th>طرد</th>
       </tr></thead><tbody>`;
